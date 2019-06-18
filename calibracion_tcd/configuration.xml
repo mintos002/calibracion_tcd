@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<opencv_storage>
+
+  <!-- Path to the output_images folder images will be saved 
+          - by default images will be searched in the application folder,
+            inside a folder named output_images that follows this scheme:
+            -> output_images
+                      |-> color
+                      |     |-> c_20196141560502490749.png
+                      |     |-> ...
+                      |-> thermo
+                      |     |-> t_20196141560502490749.png
+                      |     |-> ...                       
+            set the images path surrounded by "". For example: "C:\dir\thermo" -->
+  <PathThermoImages>"C:\Users\aljuasin\Desktop\captura_tcd\captura_tcd\x64\Release\output_images\thermo"</PathThermoImages>
+  <!-- Name of the output log file. -->
+  <OutputName>"out_camera_intrinsics_1280.xml"</OutputName>
+
+  <!-- Color and depth image resolution mode and frames per second 
+        - IntelResolution_mode 0 = 1280x720 (default)
+        - IntelResolution_mode 1 = 640x480
+        - IntelResolution_mode 2 = 848x480 
+        - Recomended IntelFPS = 30, 15 or 6 ( If app crashes with a defined IntelResolution_mode try other IntelFPS configuration) -->
+  <IntelResolution_mode>0</IntelResolution_mode>
+  <IntelFPS>30</IntelFPS>
+
+  <!-- Flip images
+        - 0 no flip (Default)
+        - 1 flip-->
+  <FlipMode>0</FlipMode>
+  <!-- Do image negative 
+        - 0 no negative (default)
+        - 1 create negative thermal image-->
+  <NegativeMode>1</NegativeMode>
+
+  <!-- Number of inner corners per a item row and column. (square, circle) -->
+  <BoardSize_Width>9</BoardSize_Width>
+  <BoardSize_Height>3</BoardSize_Height>
+
+</opencv_storage>
