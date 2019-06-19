@@ -392,7 +392,40 @@ int main(int argc, char* argv[])
 		{
 			if (imagePoints.size() > 0)
 				printf("Starting camera calibration ...\n");
-				runCalibrationAndSave(out_config_name, patternsize, squareSize, t_imageSize, t_cameraMatrix, t_distCoeffs, imagePoints, c_imageSize, c_cameraMatrix, c_distCoeffs);
+				bool ok = runCalibrationAndSave(out_config_name, patternsize, squareSize, t_imageSize, t_cameraMatrix, t_distCoeffs, imagePoints, c_imageSize, c_cameraMatrix, c_distCoeffs);
+				if (ok) {
+					cv::destroyAllWindows();
+					bool showUndistort = false;
+					if (showUndistort) 
+					{
+						for (int x = 0; x < thermo_images_path.size(); x++)
+						{
+							cv::Mat timg = cv::imread(thermo_images_path[x], cv::IMREAD_ANYDEPTH);
+							cv::Mat cimg = cv::imread(thermo_images_path[x], cv::IMREAD_ANYDEPTH);
+							// convert to 8bit
+							timg.convertTo(timg, CV_8UC1, 1 / 256.0);
+
+							cv::Mat tempt = timg.clone();
+							cv::Mat tempc = cimg.clone();
+							cv::undistort(tempt, timg, t_cameraMatrix, t_distCoeffs);
+							cv::undistort(tempc, cimg, c_cameraMatrix, c_distCoeffs);
+
+							cv::namedWindow("Undistort thermo", cv::WINDOW_AUTOSIZE);
+							cv::imshow("Undistort thermo", timg);
+
+							cv::namedWindow("Undistort color", cv::WINDOW_AUTOSIZE);
+							cv::imshow("Undistort color", cimg);
+							char key = (char)cv::waitKey(0);
+
+							if (key == 27)
+								break;
+						}
+					}
+					
+					
+				}
+				
+
 			break;
 		}
 
