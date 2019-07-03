@@ -149,7 +149,7 @@ static bool runCalibration(cv::Size boardSize, float squareSize, cv::Size& image
 static void saveCameraParams(std::string outputFileName, cv::Size& t_imageSize,  cv::Mat& t_cameraMatrix,  cv::Mat& t_distCoeffs,
 	const std::vector<cv::Mat>& rvecs, const std::vector<cv::Mat>& tvecs,
 	const std::vector<float>& reprojErrs, const std::vector<std::vector<cv::Point2f> >& imagePoints,
-	double totalAvgErr, cv::Size& c_imageSize, cv::Mat& c_cameraMatrix, cv::Mat& c_distCoeffs)
+	double totalAvgErr, cv::Size& c_imageSize, cv::Mat& c_cameraMatrix, cv::Mat& c_distCoeffs, float depth_scale)
 {
 	cv::FileStorage fs(outputFileName, cv::FileStorage::WRITE);
 
@@ -167,6 +167,7 @@ static void saveCameraParams(std::string outputFileName, cv::Size& t_imageSize, 
 	fs << "thermal_image_Height" << t_imageSize.height;
 	fs << "color_image_Width" << c_imageSize.width;
 	fs << "color_image_Height" << c_imageSize.height;
+	fs << "depth_scale" << depth_scale;
 
 	fs << "Thermal_Camera_Matrix" << t_cameraMatrix;
 	fs << "Thermal_Distortion_Coefficients" << t_distCoeffs;
@@ -197,7 +198,7 @@ static void saveCameraParams(std::string outputFileName, cv::Size& t_imageSize, 
 	
 }
 
-bool runCalibrationAndSave(std::string outputFileName, cv::Size boardSize, float squareSize, cv::Size t_imageSize, cv::Mat&  t_cameraMatrix, cv::Mat& distCoeffs, std::vector<std::vector<cv::Point2f> > imagePoints, cv::Size& c_imageSize, cv::Mat& c_cameraMatrix, cv::Mat& c_distCoeffs)
+bool runCalibrationAndSave(std::string outputFileName, cv::Size boardSize, float squareSize, cv::Size t_imageSize, cv::Mat&  t_cameraMatrix, cv::Mat& distCoeffs, std::vector<std::vector<cv::Point2f> > imagePoints, cv::Size& c_imageSize, cv::Mat& c_cameraMatrix, cv::Mat& c_distCoeffs, float depth_scale)
 {
 	std::vector<cv::Mat> rvecs, tvecs;
 	std::vector<float> reprojErrs;
@@ -206,10 +207,10 @@ bool runCalibrationAndSave(std::string outputFileName, cv::Size boardSize, float
 	bool ok = runCalibration(boardSize, squareSize, t_imageSize, t_cameraMatrix, distCoeffs, imagePoints, rvecs, tvecs,
 		reprojErrs, totalAvgErr);
 	std::cout << (ok ? "Calibration succeeded" : "Calibration failed")
-		<< ". avg re projection error = " << totalAvgErr;
+		<< ". avg re projection error = " << totalAvgErr << std::endl;
 
 	if (ok)
-		saveCameraParams(outputFileName, t_imageSize, t_cameraMatrix, distCoeffs, rvecs, tvecs, reprojErrs, imagePoints, totalAvgErr, c_imageSize, c_cameraMatrix, c_distCoeffs);
+		saveCameraParams(outputFileName, t_imageSize, t_cameraMatrix, distCoeffs, rvecs, tvecs, reprojErrs, imagePoints, totalAvgErr, c_imageSize, c_cameraMatrix, c_distCoeffs, depth_scale);
 	return ok;
 }
 
@@ -219,6 +220,7 @@ int main(int argc, char* argv[])
 	const std::string inputSettingsFile = argc > 1 ? argv[1] : "configuration.xml";
 
 	// CONFIG
+	bool showUndistort = true;
 	std::string path_thermo = "";
 	std::string path_color = "";
 	std::string out_config_name;
@@ -228,11 +230,16 @@ int main(int argc, char* argv[])
 	int cd_fps = 30;
 	int board_width;
 	int board_height;
-	float squareSize = 2.0;
+	float squareSize = 20.0;
 	
 
 	int flip_mode = 0;
+	int pattern_temp = 0;
+	int pattern_color = 0;
 	int negative_mode = 0;
+
+	int count_img = 0;
+	int count_out = 0;
 	
 	// READ CONFIG VALUES
 	cv::FileStorage fs(inputSettingsFile, cv::FileStorage::READ); // Read the settings
@@ -246,10 +253,16 @@ int main(int argc, char* argv[])
 	fs["PathThermoImages"] >> path_thermo;
 	fs["PathColorImages"] >> path_color;
 	fs["OutputName"] >> out_config_name;
+	fs["IntelResolution_mode"] >> cd_resolution_mode;
+	fs["IntelFPS"] >> cd_fps;
 	fs["FlipMode"] >> flip_mode;
+	fs["PatternTemp"] >> pattern_temp;
+	fs["PatternColor"] >> pattern_color;
 	fs["NegativeMode"] >> negative_mode;
 	fs["BoardSize_Width"] >> board_width;
 	fs["BoardSize_Height"] >> board_height;
+	fs["CircleSize"] >> squareSize;
+	fs["ShowUndistort"] >> showUndistort;
 	fs.release();
 
 	// if no path defined, follow output_images folder structure
@@ -299,12 +312,19 @@ int main(int argc, char* argv[])
 		system("pause");
 		return -1;
 	}
-	if (negative_mode < 0 && negative_mode > 1)
+	if (pattern_temp < 0 && pattern_temp > 1)
 	{
-		printf("Invalid flip mode.\n");
+		printf("Invalid pattern mode.\n");
 		system("pause");
 		return -1;
 	}
+	if (pattern_color < 0 && pattern_color > 1)
+	{
+		printf("Invalid pattern color.\n");
+		system("pause");
+		return -1;
+	}
+	
 	if (board_width <= 0 || board_height <= 0)
 	{
 		printf("Invalid negative mode.\n");
@@ -312,11 +332,17 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 	cv::Size patternsize(board_height, board_width);
+	if (squareSize < 0)
+	{
+		printf("Invalid circle size.\n");
+		system("pause");
+		return -1;
+	}
 
 	// Check if paths exists
 	if (!dirExists(path_thermo))
 	{
-		printf("Path of thermal images do not exist.");
+		printf("Path of thermal images do not exist.\n");
 		system("pause");
 		return -1;
 	}
@@ -328,17 +354,17 @@ int main(int argc, char* argv[])
 	// Check if images where found
 	if (!get_images_path(path_thermo, thermo_images_path))
 	{
-		printf("No thermal images found inside the folder.");
+		printf("No thermal images found inside the folder.\n");
 		system("pause");
 		return -1;
 	}
-	//// Check if images where found
-	//if (!get_images_path(path_color, color_images_path))
-	//{
-	//	printf("No color images found inside the folder.");
-	//	system("pause");
-	//	return -1;
-	//}
+	// Check if images where found
+	if (!get_images_path(path_color, color_images_path))
+	{
+		printf("No color images found inside the folder.\n");
+		system("pause");
+		return -1;
+	}
 
 	// Configure intelrealsense
 	rs2::pipeline pipe;
@@ -358,6 +384,15 @@ int main(int argc, char* argv[])
 	auto prof = pipe.start(cfg);
 	auto color_stream = prof.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
 	auto depth_stream = prof.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
+	rs2::device dev = prof.get_device();
+	rs2::depth_sensor ds = dev.query_sensors().front().as<rs2::depth_sensor>();
+	float depth_scale = ds.get_depth_scale();
+	//// depth image
+	//cv::Mat depth(cv::Size(depth_width, depth_height), CV_16UC1, (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP);
+	//depth_frame depth = fs.get_depth_frame();
+	//uint16_t* data = (uint16_t*)depth.get_frame_data();
+	//uint16_t pixel = data[0];
+	//float meters = pixel * scale;
 	
 	// Get color camera intrisincs
 	auto c_intrinsics = color_stream.get_intrinsics();
@@ -379,6 +414,13 @@ int main(int argc, char* argv[])
 	cv::Mat t_cameraMatrix, t_distCoeffs;
 	cv::Size t_imageSize, c_imageSize(cd_imwidth, cd_imheight);
 
+
+	printf
+	(
+		"Starting the aplication ...\n"
+		"- Press ESC to stop.\n\n"
+	);
+	// MAIN loop
 	for (int i = 0;; i++)
 	{
 		cv::Mat frame;
@@ -391,19 +433,24 @@ int main(int argc, char* argv[])
 		if (frame.empty() || thermo_images_path.size() == i)          // If no more images then run calibration, save and stop loop.
 		{
 			if (imagePoints.size() > 0)
-				printf("Starting camera calibration ...\n");
-				bool ok = runCalibrationAndSave(out_config_name, patternsize, squareSize, t_imageSize, t_cameraMatrix, t_distCoeffs, imagePoints, c_imageSize, c_cameraMatrix, c_distCoeffs);
+				printf("Starting camera calibration, this may take a while ...\n");
+				bool ok = runCalibrationAndSave(out_config_name, patternsize, squareSize, t_imageSize, t_cameraMatrix, t_distCoeffs, imagePoints, c_imageSize, c_cameraMatrix, c_distCoeffs, depth_scale);
 				if (ok) {
 					cv::destroyAllWindows();
-					bool showUndistort = false;
+					
 					if (showUndistort) 
 					{
+						printf
+						(
+							"- Press ESC to exit.\n"
+							"- Press other key to see next image.\n\n"
+						);
 						for (int x = 0; x < thermo_images_path.size(); x++)
 						{
 							cv::Mat timg = cv::imread(thermo_images_path[x], cv::IMREAD_ANYDEPTH);
-							cv::Mat cimg = cv::imread(thermo_images_path[x], cv::IMREAD_ANYDEPTH);
+							cv::Mat cimg = cv::imread(color_images_path[x], cv::IMREAD_COLOR);
 							// convert to 8bit
-							timg.convertTo(timg, CV_8UC1, 1 / 256.0);
+							timg.convertTo(timg, CV_8UC1, 1 / 256.0); // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 							cv::Mat tempt = timg.clone();
 							cv::Mat tempc = cimg.clone();
@@ -421,8 +468,7 @@ int main(int argc, char* argv[])
 								break;
 						}
 					}
-					
-					
+									
 				}
 				
 
@@ -438,13 +484,14 @@ int main(int argc, char* argv[])
 			cv::flip(frame, t, 1);
 			frame = t.clone();
 		}
-		if (negative_mode)
+		// Negative images
+		if (pattern_temp == 1)
 		{
 			cv::bitwise_not(frame, frame);
 		}
 
 		// convert to 8bit
-		frame.convertTo(frame, CV_8UC1, 1 / 256.0);
+		frame.convertTo(frame, CV_8UC1, 1 / 256.0); 
 		
 		std::vector<cv::Point2f> pointBuf;
 		bool found;
@@ -454,10 +501,20 @@ int main(int argc, char* argv[])
 		{
 			imagePoints.push_back(pointBuf);
 			cv::drawChessboardCorners(frame, patternsize, cv::Mat(pointBuf), found);
+			count_img++;
+		}
+		else
+		{
+			printf("Can't detect %s image circles. Image will be descarted in intrinsics calibration.\n", thermo_images_path[i].c_str());
+			count_out++;
 		}
 
 		if (frame.empty() == false)
 		{
+			char txt[50];
+			//sprintf(txt, "%d Set detected", count_img);
+			sprintf(txt, "%d | %d : detected | not detected", count_img, count_out);
+			cv::putText(frame, txt, cv::Point(5, 480 - 5), cv::FONT_HERSHEY_DUPLEX, 0.85, 0xffff, 1);
 			cv::namedWindow("Thermal camera", cv::WINDOW_AUTOSIZE);
 			cv::imshow("Thermal camera", frame);
 		}
