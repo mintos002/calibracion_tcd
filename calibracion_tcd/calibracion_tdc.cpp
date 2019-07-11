@@ -217,6 +217,7 @@ bool runCalibrationAndSave(std::string outputFileName, cv::Size boardSize, float
 // MAIN ---------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
+	printf("Starting the intrinsics calibration app ...\n");
 	const std::string inputSettingsFile = argc > 1 ? argv[1] : "configuration.xml";
 
 	// CONFIG
@@ -366,6 +367,24 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+	// Check if realsense is conected
+	rs2::context ctx;
+	rs2::device_list devices = ctx.query_devices();
+	rs2::device selected_device;
+	if (devices.size() == 0)
+	{
+		printf("No Intel RealSense connected, please connect the device.\n");
+		system("pause");
+		return -1;
+	}
+	else
+	{
+		printf("Intel RealSense device found.\n");
+		printf("\nATTENTION:\n"
+			" - If the app shuts down without warnings, make shure that the Intel RealSense camera is connected to a USB 3.0 port.\n\n"
+		);
+	}
+
 	// Configure intelrealsense
 	rs2::pipeline pipe;
 	rs2::config cfg;
@@ -513,7 +532,7 @@ int main(int argc, char* argv[])
 		{
 			char txt[50];
 			//sprintf(txt, "%d Set detected", count_img);
-			sprintf(txt, "%d | %d : detected | not detected", count_img, count_out);
+			sprintf(txt, "%d detected | %d not detected", count_img, count_out);
 			cv::putText(frame, txt, cv::Point(5, 480 - 5), cv::FONT_HERSHEY_DUPLEX, 0.85, 0xffff, 1);
 			cv::namedWindow("Thermal camera", cv::WINDOW_AUTOSIZE);
 			cv::imshow("Thermal camera", frame);

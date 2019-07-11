@@ -12,10 +12,10 @@
                       |     |-> t_20196141560502490749.png
                       |     |-> ...                       
             set the images path surrounded by "". For example: "C:\dir\thermo" -->
-  <PathThermoImages>"C:\Users\aljuasin\Desktop\captura_tcd\imagenes\output_imagesx640_80\thermo"</PathThermoImages>
-  <PathColorImages>"C:\Users\aljuasin\Desktop\captura_tcd\imagenes\output_imagesx640_80\color"</PathColorImages>
+  <PathThermoImages>"C:\Users\aljuasin\Desktop\captura_tcd\_imagenes\patron\output_imagesx640_80\thermo"</PathThermoImages>
+  <PathColorImages>"C:\Users\aljuasin\Desktop\captura_tcd\_imagenes\patron\output_imagesx640_80\color"</PathColorImages>
   <!-- Name of the output log file. -->
-  <OutputName>"C:\Users\aljuasin\Desktop\captura_tcd\imagenes\output_imagesx640_80\out_camera_intrinsics_640_80.xml"</OutputName>
+  <OutputName>"C:\Users\aljuasin\Desktop\captura_tcd\_imagenes\patron\output_imagesx640_80\spaceing24_intrinsics_640_80.xml"</OutputName>
 
   <!-- Color and depth image resolution mode and frames per second 
         - IntelResolution_mode 0 = 1280x720 (default)
@@ -41,8 +41,12 @@
   <!-- Number of inner corners per a item row and column. (square, circle) -->
   <BoardSize_Width>9</BoardSize_Width>
   <BoardSize_Height>3</BoardSize_Height>
-  <!-- Speciry the diameter of the circles (mm) -->
-  <CircleSize>20.0</CircleSize>
+  <!-- Specify the distance (d) between the center of the circles (x) in a row in mm
+        In the example below a 3x1 Asymetric cirlce pattern is shown:
+          | d |
+          x - |   x          
+              x     -->
+  <CircleSize>24.7487</CircleSize>
   
   <!-- Show undistorted images after calibration 
         - 0 do not show. (default)
